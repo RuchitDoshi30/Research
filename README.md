@@ -314,7 +314,7 @@ pdflatex IEEE_Research_Paper.tex
 
 - **Course:** Data Warehousing and Data Mining (DWDM) — Semester 5
 - **Department:** Department of Computer Engineering, Mumbai University
-- **Institution:** Mumbai University, Maharashtra, India
+- **Institution:** Marwadi University, Rajkot, India
 - **Repository:** [RuchitDoshi30/Research](https://github.com/RuchitDoshi30/Research)
 
 ---
