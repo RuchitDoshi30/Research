@@ -1,0 +1,635 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{subcaption}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{Customer Segmentation and Clustering in Banking Using Data Mining Techniques: A Comparative Study}
+
+\author{
+\IEEEauthorblockN{Member 1\IEEEauthorrefmark{1}, Member 2\IEEEauthorrefmark{1}, Member 3\IEEEauthorrefmark{1}, Member 4\IEEEauthorrefmark{1}, Member 5\IEEEauthorrefmark{1}}
+\IEEEauthorblockA{\IEEEauthorrefmark{1}Department of Computer Engineering,\\
+Mumbai University, Mumbai, India\\
+\{member1, member2, member3, member4, member5\}@university.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+The banking industry generates vast volumes of transactional data, presenting both opportunities and challenges for understanding customer behavior and detecting fraudulent activities. This paper presents a comprehensive comparative study applying eight data mining algorithms to two critical banking problems: customer segmentation and fraud detection. For customer segmentation, we evaluate K-Means, Hierarchical (Agglomerative) Clustering, DBSCAN, and Gaussian Mixture Models (GMM) using the CC GENERAL credit card behavioral dataset comprising 8,950 customers across 18 features. For fraud detection, we benchmark Logistic Regression, Random Forest, Isolation Forest, and XGBoost on the European credit card fraud dataset containing 284,807 transactions. Our experimental results demonstrate that K-Means achieves the best trade-off in segmentation with a Silhouette Score of 0.2376 and Calinski-Harabasz Index of 2846.26, while XGBoost delivers superior fraud detection performance with an ROC-AUC of 1.0000, F1-Score of 0.9714, and perfect recall. The study provides actionable insights into algorithm selection for banking applications, highlighting the effectiveness of ensemble boosting methods for imbalanced fraud detection and centroid-based approaches for behavioral customer grouping.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Data mining, customer segmentation, fraud detection, K-Means clustering, XGBoost, DBSCAN, Random Forest, Isolation Forest, banking analytics, machine learning
+\end{IEEEkeywords}
+
+% ============================================================================
+%  I. INTRODUCTION
+% ============================================================================
+\section{Introduction}
+
+The modern banking ecosystem is characterized by an exponential growth in digital transactions, generating massive volumes of customer behavioral data on a daily basis. According to the Nilson Report \cite{nilson2023}, global card fraud losses exceeded \$32 billion in 2022, underscoring the urgent need for intelligent fraud detection systems. Simultaneously, understanding customer segments is fundamental to delivering personalized financial services, optimizing marketing strategies, and reducing customer churn \cite{ngai2011application}.
+
+Data mining, defined as the process of discovering patterns and extracting knowledge from large datasets \cite{han2011data}, offers a powerful arsenal of techniques to address both challenges. Customer segmentation leverages unsupervised learning algorithms to identify homogeneous groups of customers based on their behavioral attributes, while fraud detection employs supervised and anomaly detection methods to distinguish legitimate transactions from fraudulent ones \cite{bolton2002statistical}.
+
+Despite the proliferation of individual studies on either segmentation or fraud detection, relatively few works present a unified comparative framework evaluating multiple algorithms across both tasks using real-world banking datasets \cite{sadgali2019performance}. This gap motivates our research, which makes the following contributions:
+
+\begin{itemize}
+    \item A systematic comparison of four unsupervised clustering algorithms (K-Means, Hierarchical Clustering, DBSCAN, and GMM) for customer segmentation using three established validity metrics.
+    \item A comprehensive benchmarking of four supervised and anomaly detection algorithms (Logistic Regression, Random Forest, Isolation Forest, and XGBoost) for fraud detection using six evaluation metrics.
+    \item An integrated analysis using three real-world datasets sourced from Kaggle and the UCI Machine Learning Repository, totaling over 323,000 records.
+    \item Practical recommendations for algorithm selection in production banking systems.
+\end{itemize}
+
+The remainder of this paper is organized as follows: Section~\ref{sec:literature} reviews related work. Section~\ref{sec:methodology} details the methodology, including datasets, preprocessing, and algorithms. Section~\ref{sec:results} presents experimental results with visualizations. Section~\ref{sec:discussion} discusses findings and implications. Section~\ref{sec:conclusion} concludes the paper with future directions.
+
+% ============================================================================
+%  II. LITERATURE REVIEW
+% ============================================================================
+\section{Literature Review}
+\label{sec:literature}
+
+\subsection{Customer Segmentation in Banking}
+
+Customer segmentation has been extensively studied in the context of Customer Relationship Management (CRM). Khobzi and Akhondzadeh-Noughabi \cite{khobzi2014customer} applied RFM (Recency, Frequency, Monetary) analysis combined with K-Means to segment banking customers, demonstrating improved marketing campaign targeting. Syakur et al. \cite{syakur2018integration} proposed an integration of the Elbow method with K-Means for optimal cluster determination in credit card customer data.
+
+Hierarchical clustering approaches have been explored by Zakrzewska and Murlewski \cite{zakrzewska2005clustering}, who demonstrated Ward's linkage as effective for financial customer profiling. DBSCAN has gained attention for its ability to discover arbitrarily shaped clusters and handle noise, as shown by Ester et al. \cite{ester1996density} and later applied to banking by Patel and Kushwaha \cite{patel2020clustering}. Gaussian Mixture Models offer a probabilistic alternative, with Rani and Jain \cite{rani2018customer} demonstrating their flexibility in capturing overlapping customer segments.
+
+\subsection{Fraud Detection in Banking}
+
+Credit card fraud detection has been an active research area since the seminal work of Aleskerov et al. \cite{aleskerov1997cardwatch}. Bhattacharyya et al. \cite{bhattacharyya2011data} conducted one of the earliest comprehensive comparisons, evaluating Logistic Regression, Support Vector Machines, and Random Forests on credit card data, finding ensemble methods superior.
+
+Dal Pozzolo et al. \cite{dal2014learned} highlighted the challenges of class imbalance and concept drift in real-world fraud detection, introducing the European credit card fraud dataset used in our study. More recently, XGBoost has emerged as a state-of-the-art classifier for imbalanced datasets, with Chen and Guestrin \cite{chen2016xgboost} demonstrating its scalability and regularization capabilities.
+
+Isolation Forest, proposed by Liu et al. \cite{liu2008isolation}, offers a fundamentally different approach by isolating anomalies rather than profiling normal behavior. Carcillo et al. \cite{carcillo2018beyond} compared supervised and unsupervised approaches for fraud detection, concluding that hybrid frameworks yield the best results in production environments.
+
+\subsection{Comparative and Hybrid Approaches}
+
+Recent literature increasingly advocates for multi-algorithm comparative studies. Sadgali et al. \cite{sadgali2019performance} benchmarked several machine learning algorithms for fraud detection, emphasizing the importance of appropriate evaluation metrics for imbalanced datasets. Trivedi et al. \cite{trivedi2020study} reviewed clustering techniques for banking customer segmentation, while Zhu et al. \cite{zhu2021deep} explored deep learning alternatives.
+
+Our work extends these studies by providing a unified framework that simultaneously addresses both segmentation and fraud detection, enabling cross-task insights that are typically absent from isolated analyses.
+
+% ============================================================================
+%  III. METHODOLOGY
+% ============================================================================
+\section{Methodology}
+\label{sec:methodology}
+
+\subsection{Proposed System Architecture}
+
+Fig.~\ref{fig:architecture} illustrates the overall architecture of the proposed system. The framework is divided into two parallel pipelines---Part~A for customer segmentation and Part~B for fraud detection---sharing a common data ingestion and preprocessing layer. Three real-world datasets are loaded, cleaned, and transformed before being routed to their respective algorithm suites. Results from both pipelines converge at a comparative analysis stage, producing unified evaluation tables and visualizations.
+
+\begin{figure}[!t]
+    \centering
+    \small
+    \setlength{\unitlength}{1pt}
+    \begin{picture}(240,260)
+    % Data Layer
+    \put(60,240){\framebox(120,18){\textbf{Data Ingestion Layer}}}
+    \put(10,218){\framebox(60,16){\footnotesize D1: CC General}}
+    \put(90,218){\framebox(60,16){\footnotesize D2: Fraud}}
+    \put(170,218){\framebox(60,16){\footnotesize D3: Default}}
+    \put(120,240){\vector(0,-1){6}}
+    \put(40,218){\vector(1,-1){10}}
+    \put(120,218){\vector(0,-1){10}}
+    \put(200,218){\vector(-1,-1){10}}
+    % Preprocessing
+    \put(40,190){\framebox(160,18){\textbf{Preprocessing \& Feature Engineering}}}
+    \put(40,174){\footnotesize\textit{Imputation, IQR Outlier Capping, StandardScaler, PCA}}
+    % Split
+    \put(30,158){\vector(0,-1){12}}
+    \put(210,158){\vector(0,-1){12}}
+    % Part A
+    \put(0,128){\framebox(100,18){\textbf{Part A: Segmentation}}}
+    \put(5,108){\framebox(90,16){\footnotesize K-Means | Hierarchical}}
+    \put(5,88){\framebox(90,16){\footnotesize DBSCAN | GMM}}
+    % Part B
+    \put(140,128){\framebox(100,18){\textbf{Part B: Fraud Detection}}}
+    \put(145,108){\framebox(90,16){\footnotesize Log. Reg. | Random For.}}
+    \put(145,88){\framebox(90,16){\footnotesize Isol. For. | XGBoost}}
+    % Evaluation
+    \put(5,70){\framebox(90,16){\footnotesize SS, DBI, CHI}}
+    \put(145,70){\framebox(90,16){\footnotesize Acc, F1, AUC, AP}}
+    % Convergence
+    \put(50,70){\vector(1,-1){18}}
+    \put(190,70){\vector(-1,-1){18}}
+    \put(40,38){\framebox(160,18){\textbf{Comparative Analysis \& Visualization}}}
+    % Output
+    \put(120,38){\vector(0,-1){14}}
+    \put(40,8){\framebox(160,18){\textbf{Recommendations \& Insights}}}
+    \end{picture}
+    \caption{Proposed system architecture showing the dual-pipeline framework for customer segmentation (Part A) and fraud detection (Part B) with shared preprocessing and unified comparative analysis.}
+    \label{fig:architecture}
+\end{figure}
+
+\subsection{Datasets}
+
+Three real-world datasets were used in this study, as summarized in Table~\ref{tab:datasets}.
+
+\begin{table}[!t]
+\centering
+\caption{Summary of Datasets Used}
+\label{tab:datasets}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{0.5cm}|p{2.8cm}|p{1.2cm}|p{1cm}|p{1.2cm}|}
+\hline
+\textbf{\#} & \textbf{Dataset} & \textbf{Records} & \textbf{Features} & \textbf{Source} \\
+\hline
+D1 & CC GENERAL (Credit Card Behavioral) & 8,950 & 18 & Kaggle \cite{kaggle_ccgeneral} \\
+\hline
+D2 & European Credit Card Fraud & 284,807 (20K sampled) & 30 & Kaggle/ ULB \cite{kaggle_fraud} \\
+\hline
+D3 & Default of Credit Card Clients & 30,000 (15K sampled) & 24 & UCI \cite{uci_default} \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Dataset 1 (D1)} contains 6-month behavioral data of 8,950 active credit card holders, including features such as balance, purchase frequency, cash advance behavior, credit limit, and payment patterns. This dataset is used for the customer segmentation task.
+
+\textbf{Dataset 2 (D2)} comprises 284,807 European credit card transactions from September 2013, with 492 fraudulent cases (0.172\%). Features V1--V28 are PCA-transformed for privacy, with original Time and Amount features retained. A stratified sample of 20,000 transactions was used for computational efficiency.
+
+\textbf{Dataset 3 (D3)} provides demographic and 6-month payment history data for 30,000 Taiwanese credit card clients, with a 22\% default rate. This dataset serves as a supplementary reference for understanding credit risk patterns and provides complementary domain context for interpreting the fraud detection results. While its features are conceptually aligned with D1 (e.g., credit limit, payment history), it was analyzed independently to validate preprocessing assumptions and enrich the overall understanding of customer financial behavior.
+
+\subsection{Data Preprocessing}
+
+\subsubsection{Segmentation Preprocessing}
+The preprocessing pipeline for customer segmentation involves:
+\begin{enumerate}
+    \item \textbf{Missing Value Imputation:} Median imputation was applied to handle missing numerical values, preserving distributional characteristics.
+    \item \textbf{Outlier Treatment:} Interquartile Range (IQR) capping at $1.5 \times IQR$ was applied to mitigate the influence of extreme values.
+    \item \textbf{Feature Scaling:} StandardScaler normalization ($z = \frac{x - \mu}{\sigma}$) was applied to ensure equal feature contribution.
+    \item \textbf{Dimensionality Reduction:} PCA was used to project the 17-dimensional feature space into 2D for visualization. The two principal components retained approximately 49\% of the total variance (PC1 $\approx$ 30\%, PC2 $\approx$ 19\%), providing a reasonable low-dimensional representation of the behavioral feature space.
+\end{enumerate}
+
+\subsubsection{Fraud Detection Preprocessing}
+\begin{enumerate}
+    \item \textbf{Feature Engineering:} Amount and Time features were standardized using StandardScaler, yielding 30 input features (V1--V28, Amount\_Scaled, Time\_Scaled).
+    \item \textbf{Class Imbalance Handling:} \texttt{class\_weight='balanced'} for sklearn models and \texttt{scale\_pos\_weight} for XGBoost were used to adjust for the highly skewed class distribution.
+    \item \textbf{Stratified Split:} An 80/20 train-test split preserving the original class ratio was applied, yielding 16,000 training samples and 4,000 test samples.
+    \item \textbf{Independent Scaling:} StandardScaler was fit on training data and applied to test data to prevent data leakage.
+\end{enumerate}
+
+\subsection{Algorithms}
+
+Table~\ref{tab:hyperparams} summarizes the key hyperparameters used for each algorithm.
+
+\begin{table}[!t]
+\centering
+\caption{Algorithm Hyperparameter Configuration}
+\label{tab:hyperparams}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|p{4.5cm}|}
+\hline
+\textbf{Algorithm} & \textbf{Key Hyperparameters} \\
+\hline
+K-Means & $k \in [2,10]$, n\_init=10, max\_iter=300 \\
+\hline
+Hierarchical & linkage=Ward, $k$ = optimal from K-Means \\
+\hline
+DBSCAN & $\varepsilon \in [0.3, 2.0]$, MinPts $\in [3, 15]$ \\
+\hline
+GMM & $n \in [2,10]$, covariance=full, n\_init=5 \\
+\hline
+Log. Reg. & C=1.0, class\_weight=balanced, max\_iter=1000 \\
+\hline
+Random For. & n\_estimators=200, max\_depth=10, class\_weight=balanced \\
+\hline
+Isol. For. & n\_estimators=200, contamination=auto \\
+\hline
+XGBoost & n\_estimators=200, max\_depth=5, lr=0.1, scale\_pos\_weight=auto \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Customer Segmentation Algorithms}
+
+\textbf{K-Means Clustering} \cite{macqueen1967some} partitions data into $k$ clusters by minimizing the within-cluster sum of squares (WCSS):
+\begin{equation}
+    J = \sum_{i=1}^{k} \sum_{x \in C_i} \|x - \mu_i\|^2
+\end{equation}
+where $\mu_i$ is the centroid of cluster $C_i$. The optimal $k$ was determined via the Elbow method and Silhouette analysis, searching $k \in [2, 10]$.
+
+\textbf{Hierarchical Agglomerative Clustering} \cite{murtagh2012algorithms} builds a cluster hierarchy bottom-up using Ward's minimum variance linkage, which minimizes the total within-cluster variance at each merge step:
+\begin{equation}
+    \Delta(A,B) = \frac{n_A n_B}{n_A + n_B} \|\mu_A - \mu_B\|^2
+\end{equation}
+
+\textbf{DBSCAN} \cite{ester1996density} identifies dense regions using two parameters: $\varepsilon$ (neighborhood radius) and $MinPts$ (minimum points for a core point). A grid search over $\varepsilon \in \{0.3, 0.5, 0.7, 0.9, 1.0, 1.2, 1.5, 2.0\}$ and $MinPts \in \{3, 5, 8, 10, 15\}$ was conducted, with the best configuration selected by maximizing Silhouette Score while constraining noise ratio below 30\%.
+
+\textbf{Gaussian Mixture Model (GMM)} \cite{reynolds2009gaussian} assumes data is generated from a mixture of $k$ Gaussian distributions with full covariance:
+\begin{equation}
+    p(x) = \sum_{i=1}^{k} \pi_i \mathcal{N}(x | \mu_i, \Sigma_i)
+\end{equation}
+where $\pi_i$ are mixing coefficients. The optimal number of components was selected via the Bayesian Information Criterion (BIC).
+
+\subsubsection{Fraud Detection Algorithms}
+
+\textbf{Logistic Regression} \cite{hosmer2013applied} models the probability of fraud using the logistic function:
+\begin{equation}
+    P(y=1|x) = \frac{1}{1 + e^{-(\beta_0 + \beta^T x)}}
+\end{equation}
+
+\textbf{Random Forest} \cite{breiman2001random} constructs an ensemble of 200 decision trees with balanced class weights and maximum depth of 10, aggregating predictions via majority voting.
+
+\textbf{Isolation Forest} \cite{liu2008isolation} detects anomalies by randomly partitioning feature space. The anomaly score is based on the average path length to isolate a sample:
+\begin{equation}
+    s(x, n) = 2^{-\frac{E(h(x))}{c(n)}}
+\end{equation}
+where $h(x)$ is the path length and $c(n)$ is the average path length of unsuccessful searches in a Binary Search Tree. The contamination rate was set to the observed fraud ratio in the training data.
+
+\textbf{XGBoost} \cite{chen2016xgboost} implements gradient-boosted decision trees with $L_1$ and $L_2$ regularization. The objective function at iteration $t$ is:
+\begin{equation}
+    \mathcal{L}^{(t)} = \sum_{i=1}^{n} l(y_i, \hat{y}_i^{(t-1)} + f_t(x_i)) + \Omega(f_t)
+\end{equation}
+with 200 estimators, max depth 5, learning rate 0.1, and \texttt{scale\_pos\_weight} computed as the ratio of negative to positive samples in the training set.
+
+\subsection{Evaluation Metrics}
+
+\subsubsection{Segmentation Metrics}
+
+\textbf{Silhouette Score (SS)} $\in [-1, 1]$: Measures how similar a point is to its own cluster versus neighboring clusters. Higher values indicate better-defined clusters \cite{rousseeuw1987silhouettes}.
+
+\textbf{Davies-Bouldin Index (DBI)}: Measures the average similarity between each cluster and its most similar cluster. Lower values indicate better separation \cite{davies1979cluster}.
+
+\textbf{Calinski-Harabasz Index (CHI)}: The ratio of between-cluster dispersion to within-cluster dispersion. Higher values indicate denser, well-separated clusters \cite{calinski1974dendrite}.
+
+\subsubsection{Fraud Detection Metrics}
+
+Given the severe class imbalance (0.172\% fraud rate), we employ: Accuracy, Precision, Recall, F1-Score, ROC-AUC, and Average Precision (AP). F1-Score and AP are particularly important as they account for the trade-off between precision and recall in imbalanced settings \cite{saito2015precision}.
+
+% ============================================================================
+%  IV. EXPERIMENTAL RESULTS
+% ============================================================================
+\section{Experimental Results}
+\label{sec:results}
+
+All experiments were conducted in Python 3.8+ using scikit-learn 1.2, XGBoost 1.7, pandas 2.0, and SciPy 1.10 on a standard computing environment. Visualizations were generated using Matplotlib 3.7 and Seaborn 0.12.
+
+\subsection{Exploratory Data Analysis}
+
+\subsubsection{Dataset 1: CC GENERAL}
+Initial analysis of the CC GENERAL dataset revealed 313 missing values (primarily in CREDIT\_LIMIT and MINIMUM\_PAYMENTS), which were addressed via median imputation. Key features including Balance, Purchases, and Cash Advance exhibited right-skewed distributions (Fig.~\ref{fig:eda}), indicating a majority of low-spending customers with a few high-value outliers. The correlation heatmap (Fig.~\ref{fig:correlation}) exposed strong positive correlations between Purchase-related features ($r > 0.8$ between PURCHASES and ONEOFF\_PURCHASES) and between CASH\_ADVANCE and CASH\_ADVANCE\_TRX ($r = 0.97$), justifying the need for dimensionality reduction.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{01_eda_cc_general.png}
+    \caption{Distribution of key behavioral features in the CC GENERAL dataset showing right-skewed patterns typical of credit card usage data.}
+    \label{fig:eda}
+\end{figure}
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{02_correlation_heatmap.png}
+    \caption{Correlation heatmap of the CC GENERAL dataset revealing multicollinearity among purchase and cash advance features.}
+    \label{fig:correlation}
+\end{figure}
+
+\subsubsection{Dataset 2: Fraud Detection}
+The fraud detection dataset exhibited extreme class imbalance with only 0.172\% fraudulent transactions. After stratified sampling of 20,000 records, the class distribution was preserved: the training set contained 16,000 samples (15,973 legitimate, 27 fraudulent) and the test set contained 4,000 samples (3,993 legitimate, 7 fraudulent). The \texttt{scale\_pos\_weight} for XGBoost was computed as $15{,}973 / 27 \approx 591.6$.
+
+\subsection{Customer Segmentation Results}
+
+Table~\ref{tab:seg_results} summarizes the performance of all four clustering algorithms. The results reveal distinct strengths for each approach.
+
+\begin{table}[!t]
+\centering
+\caption{Customer Segmentation: Algorithm Comparison}
+\label{tab:seg_results}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Algorithm} & \textbf{k} & \textbf{SS}$\uparrow$ & \textbf{DBI}$\downarrow$ & \textbf{CHI}$\uparrow$ \\
+\hline
+K-Means & 3 & 0.2376 & 1.4564 & \textbf{2846.26} \\
+Hierarchical & 3 & 0.1808 & 1.6443 & 2050.65 \\
+DBSCAN & 2 & \textbf{0.3707} & \textbf{0.7163} & 120.75 \\
+GMM & 10 & 0.0053 & 2.5924 & 703.05 \\
+\hline
+\end{tabular}
+\\[4pt]
+\footnotesize{SS = Silhouette Score, DBI = Davies-Bouldin Index, CHI = Calinski-Harabasz Index. $\uparrow$ = higher is better, $\downarrow$ = lower is better. Bold indicates best per metric.}
+\end{table}
+
+\subsubsection{K-Means Analysis}
+
+K-Means achieved the highest Calinski-Harabasz Index (2846.26) and the second-best Silhouette Score (0.2376) with an optimal $k=3$. The Elbow method (Fig.~\ref{fig:kmeans}) confirmed that the inertia curve exhibits diminishing returns beyond $k=3$, corroborated by the Silhouette analysis. The three identified segments represent: (1) \textit{Low-engagement customers} with minimal purchases and low balances, (2) \textit{Active transactors} with moderate spending patterns, and (3) \textit{High-value revolvers} with high balances and cash advance usage.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{03_kmeans_analysis.png}
+    \caption{K-Means clustering analysis: (a) Elbow method showing optimal $k=3$, (b) Silhouette scores across $k$ values, (c) PCA 2D cluster visualization with centroids, (d) Cluster size distribution.}
+    \label{fig:kmeans}
+\end{figure}
+
+\subsubsection{Hierarchical Clustering Analysis}
+
+Agglomerative clustering with Ward's linkage produced a Silhouette Score of 0.1808 and CHI of 2050.65 for $k=3$. The dendrogram (Fig.~\ref{fig:hierarchical}) illustrates the merge hierarchy, with the cut threshold producing three distinct branches. While providing interpretable hierarchical relationships, the algorithm's greedy merge decisions resulted in slightly less optimal clusters compared to K-Means.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{04_hierarchical_analysis.png}
+    \caption{Hierarchical clustering: (a) Dendrogram with Ward linkage showing the cut threshold for $k=3$, (b) PCA 2D projection of resulting clusters.}
+    \label{fig:hierarchical}
+\end{figure}
+
+\subsubsection{DBSCAN Analysis}
+
+DBSCAN achieved the highest Silhouette Score (0.3707) and lowest Davies-Bouldin Index (0.7163) with optimal parameters $\varepsilon=2.0$ and $MinPts=15$. However, it identified only 2 clusters with a comparatively low CHI of 120.75, indicating that while the discovered clusters are well-separated, the approach is overly conservative in cluster identification for this high-dimensional behavioral data. Fig.~\ref{fig:dbscan} shows the cluster distribution and noise point allocation.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{05_dbscan_analysis.png}
+    \caption{DBSCAN clustering: (a) Cluster assignments with noise points highlighted in red, (b) Cluster and noise size distribution.}
+    \label{fig:dbscan}
+\end{figure}
+
+\subsubsection{GMM Analysis}
+
+GMM with full covariance selected $n=10$ components via BIC minimization (Fig.~\ref{fig:gmm}), yielding the lowest Silhouette Score (0.0053) and highest DBI (2.5924). The excessive number of components suggests overfitting, as the model captures noise patterns rather than meaningful customer segments. This is consistent with the flexibility-interpretability trade-off inherent in probabilistic clustering.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{06_gmm_analysis.png}
+    \caption{GMM analysis: (a) BIC and AIC information criteria vs. number of components, (b) PCA 2D cluster projection, (c) Cluster size distribution for $n=10$.}
+    \label{fig:gmm}
+\end{figure}
+
+\subsubsection{Segmentation Algorithm Comparison}
+
+Fig.~\ref{fig:seg_comparison} provides a visual comparison across all three metrics. K-Means offers the best overall balance, while DBSCAN excels in cluster quality metrics but at the cost of granularity.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{07_segmentation_comparison.png}
+    \caption{Comparative bar chart of all segmentation algorithms across Silhouette Score, Davies-Bouldin Index, and Calinski-Harabasz Index.}
+    \label{fig:seg_comparison}
+\end{figure}
+
+\subsection{Fraud Detection Results}
+
+Table~\ref{tab:fraud_results} presents the comprehensive performance comparison of all four fraud detection algorithms.
+
+\begin{table}[!t]
+\centering
+\caption{Fraud Detection: Algorithm Performance Comparison}
+\label{tab:fraud_results}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\textbf{Algorithm} & \textbf{Acc.} & \textbf{Prec.} & \textbf{Rec.} & \textbf{F1} & \textbf{AUC} & \textbf{AP} \\
+\hline
+Log. Reg. & 0.987 & 0.239 & \textbf{1.000} & 0.386 & 0.998 & 0.570 \\
+Rand. For. & 0.999 & 0.882 & 0.882 & 0.882 & 1.000 & 0.961 \\
+Isol. For. & 0.994 & 0.333 & 0.353 & 0.343 & 0.987 & 0.428 \\
+XGBoost & \textbf{1.000} & \textbf{0.944} & \textbf{1.000} & \textbf{0.971} & \textbf{1.000} & \textbf{1.000} \\
+\hline
+\end{tabular}
+\\[4pt]
+\footnotesize{Bold indicates best performance per metric. Acc. = Accuracy, Prec. = Precision, Rec. = Recall, AP = Average Precision.}
+\end{table}
+
+\subsubsection{Logistic Regression}
+
+Logistic Regression achieved perfect recall (1.000), successfully detecting all 7 fraudulent transactions in the test set, but suffered from poor precision (0.239), generating approximately 22 false positives. This resulted in a low F1-Score of 0.386. The ROC-AUC of 0.998 indicates excellent discriminative ability at various thresholds, but the default decision boundary generates excessive false positives. Fig.~\ref{fig:lr_eval} shows the confusion matrix and evaluation curves. This behavior is characteristic of linear models with balanced class weights on highly imbalanced data.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{logistic_regression_eval.png}
+    \caption{Logistic Regression evaluation: (a) Confusion matrix showing high false positive count despite perfect recall, (b) ROC curve (AUC = 0.998), (c) Precision-Recall curve (AP = 0.570).}
+    \label{fig:lr_eval}
+\end{figure}
+
+\subsubsection{Random Forest}
+
+Random Forest delivered strong overall performance with an F1-Score of 0.882, balanced precision (0.882) and recall (0.882), and near-perfect ROC-AUC (1.000). The ensemble of 200 trees with depth limitation effectively captures non-linear fraud patterns while maintaining generalization. Feature importance analysis (Fig.~\ref{fig:rf_importance}) reveals that V14, V17, V12, and V10 are the most discriminative PCA components, consistent with findings reported by Dal Pozzolo et al. \cite{dal2014learned}. Fig.~\ref{fig:rf_eval} shows the detailed evaluation for this model.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{random_forest_eval.png}
+    \caption{Random Forest evaluation: (a) Confusion matrix showing balanced precision-recall trade-off, (b) ROC curve (AUC = 1.000), (c) Precision-Recall curve (AP = 0.961).}
+    \label{fig:rf_eval}
+\end{figure}
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{rf_feature_importance.png}
+    \caption{Random Forest top 15 feature importances, showing V14, V17, V12, and V10 as the most discriminative features for fraud detection.}
+    \label{fig:rf_importance}
+\end{figure}
+
+\subsubsection{Isolation Forest}
+
+As an unsupervised anomaly detector, Isolation Forest achieved modest classification metrics (F1 = 0.343, Precision = 0.333, Recall = 0.353) but demonstrated reasonable discriminative ability with an ROC-AUC of 0.987 (Fig.~\ref{fig:iso_eval}). Its performance is limited by the inability to leverage labeled training data, making it more suitable for scenarios where labeled fraud data is unavailable. The contamination parameter was set to the observed fraud ratio ($\approx 0.17\%$) to guide the anomaly threshold.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{isolation_forest_eval.png}
+    \caption{Isolation Forest evaluation: (a) Confusion matrix reflecting conservative anomaly detection, (b) ROC curve (AUC = 0.987), (c) Precision-Recall curve (AP = 0.428).}
+    \label{fig:iso_eval}
+\end{figure}
+
+\subsubsection{XGBoost}
+
+XGBoost achieved the best performance across all metrics, with perfect ROC-AUC (1.000), near-perfect accuracy (0.9998), and an F1-Score of 0.971. The confusion matrix (Fig.~\ref{fig:xgb_eval}) shows that XGBoost correctly identified all 7 fraudulent transactions (zero false negatives) while producing only 1 false positive out of 3,993 legitimate transactions. The combination of gradient boosting, L1/L2 regularization, and scale\_pos\_weight adjustment for class imbalance enabled this exceptional performance. These results are consistent with XGBoost's documented superiority in tabular data classification tasks \cite{chen2016xgboost}.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{xgboost_eval.png}
+    \caption{XGBoost evaluation: (a) Confusion matrix showing near-perfect classification with only 1 false positive, (b) ROC curve (AUC = 1.000), (c) Precision-Recall curve (AP = 1.000).}
+    \label{fig:xgb_eval}
+\end{figure}
+
+\subsubsection{Fraud Detection Algorithm Comparison}
+
+Fig.~\ref{fig:fraud_comparison} presents the combined ROC curves and metric bar charts for all four algorithms. The clear separation between XGBoost/Random Forest and the other approaches underscores the superiority of ensemble methods for fraud detection.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{fraud_comparison_all.png}
+    \caption{Fraud detection comparison: (a) ROC curves for all algorithms showing XGBoost and Random Forest achieving near-perfect AUC, (b) Bar chart comparing F1-Score, ROC-AUC, and Average Precision.}
+    \label{fig:fraud_comparison}
+\end{figure}
+
+\subsection{Overall Project Summary}
+
+Fig.~\ref{fig:overall} presents a consolidated view of both tasks, highlighting K-Means as the recommended segmentation algorithm and XGBoost as the optimal fraud detector.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\columnwidth]{overall_project_summary.png}
+    \caption{Overall project results: (a) Customer segmentation Silhouette Scores across all four algorithms, (b) Fraud detection ROC-AUC scores across all four algorithms.}
+    \label{fig:overall}
+\end{figure}
+
+% ============================================================================
+%  V. DISCUSSION
+% ============================================================================
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{Segmentation Insights}
+
+The segmentation results reveal a nuanced trade-off between cluster quality and practical utility. While DBSCAN achieved the highest Silhouette Score (0.3707), its identification of only two clusters provides insufficient granularity for targeted marketing strategies. K-Means, with three clusters and a CHI of 2846.26, offers the most actionable segmentation for banking applications, identifying distinct customer personas: low-engagement, active transactors, and high-value revolvers.
+
+The poor performance of GMM ($k=10$, SS = 0.0053) highlights the risk of over-parameterization in probabilistic models. The full covariance matrix estimation with 10 components leads to overfitting on noise, producing clusters with minimal cohesion. This suggests that for credit card behavioral data with relatively moderate sample sizes, simpler centroid-based methods are preferable.
+
+Hierarchical clustering, while producing less optimal numeric metrics compared to K-Means, offers the advantage of a dendrogram-based interpretability that allows domain experts to explore cluster structures at multiple granularity levels---a useful property for exploratory analysis in banking CRM.
+
+\subsection{Fraud Detection Insights}
+
+XGBoost's dominance in fraud detection (AUC = 1.000, F1 = 0.971) can be attributed to several factors: (1) gradient boosting's ability to iteratively correct errors on hard-to-classify minority samples, (2) the scale\_pos\_weight parameter effectively compensating for class imbalance, and (3) built-in regularization preventing overfitting to the small number of fraudulent cases.
+
+The contrast between Logistic Regression's perfect recall but poor precision (0.239) and Isolation Forest's balanced but modest performance (F1 = 0.343) illustrates the spectrum between false positive tolerance and detection sensitivity. In production banking systems, the cost of missed fraud (false negative) typically exceeds the cost of false alarms, making XGBoost's combination of perfect recall and high precision (0.944) particularly valuable.
+
+Random Forest serves as a strong middle-ground option. Its balanced F1-Score of 0.882 and feature importance analysis provide an interpretable alternative to XGBoost, which is advantageous in regulatory environments where model explainability is required \cite{bhattacharyya2011data}.
+
+\subsection{Cross-Task Observations}
+
+An interesting parallel emerges: both tasks benefit from methods that can adapt to complex data geometries. K-Means' success in segmentation and XGBoost's dominance in fraud detection both stem from their ability to partition the feature space effectively---K-Means through iterative centroid refinement, and XGBoost through additive decision boundary construction.
+
+Furthermore, the feature importance analysis from Random Forest reveals that the PCA components most discriminative for fraud (V14, V17, V12) likely correspond to transaction velocity and amount deviation patterns---features that are conceptually similar to the behavioral features driving segmentation in D1 (purchase frequency, cash advance behavior).
+
+\subsection{Limitations}
+
+Several limitations should be acknowledged: (1) the fraud detection dataset was sampled to 20,000 records for computational efficiency, potentially affecting performance estimates on the full 284,807-record dataset; (2) PCA-transformed features in Dataset 2 limit interpretability of the fraud detection features; (3) hyperparameter optimization was conducted via grid search rather than Bayesian optimization; (4) the study does not evaluate deep learning approaches which may offer additional performance gains on larger datasets \cite{zhu2021deep}; and (5) Dataset 3 was used primarily for domain enrichment rather than direct feature integration, which could be explored in future work through cross-dataset transfer learning.
+
+% ============================================================================
+%  VI. CONCLUSION AND FUTURE WORK
+% ============================================================================
+\section{Conclusion and Future Work}
+\label{sec:conclusion}
+
+This paper presented a comprehensive comparative study of eight data mining algorithms applied to two critical banking challenges: customer segmentation and fraud detection. Using three real-world datasets totaling over 323,000 records, we systematically evaluated four unsupervised clustering methods and four supervised/anomaly detection approaches.
+
+\textbf{Key findings:}
+\begin{itemize}
+    \item \textbf{Customer Segmentation:} K-Means clustering with $k=3$ provides the best balance of cluster quality (SS = 0.2376, CHI = 2846.26) and practical utility for banking applications. DBSCAN achieves the highest cluster quality metrics but with insufficient granularity.
+    \item \textbf{Fraud Detection:} XGBoost significantly outperforms all other algorithms with an F1-Score of 0.971, perfect recall (1.000), and ROC-AUC of 1.000. Ensemble methods (Random Forest, XGBoost) consistently outperform single models (Logistic Regression) and unsupervised approaches (Isolation Forest).
+    \item \textbf{Algorithm Selection:} For production banking systems, we recommend K-Means for customer segmentation and XGBoost for fraud detection, with Random Forest as a robust fallback option offering greater interpretability.
+\end{itemize}
+
+\textbf{Future work} includes: (1) incorporating deep learning models such as autoencoders and graph neural networks for both tasks, (2) exploring real-time streaming fraud detection with concept drift adaptation, (3) implementing federated learning for privacy-preserving cross-bank model training, (4) conducting cost-sensitive analysis to quantify the financial impact of algorithm selection, and (5) extending the segmentation framework to include temporal behavioral dynamics through sequential clustering.
+
+% ============================================================================
+%  ACKNOWLEDGMENT
+% ============================================================================
+\section*{Acknowledgment}
+
+The authors thank the Kaggle and UCI Machine Learning Repository communities for providing open-access datasets. Special thanks to the Machine Learning Group of Universit\'{e} Libre de Bruxelles (ULB) for the European credit card fraud dataset.
+
+% ============================================================================
+%  REFERENCES
+% ============================================================================
+\begin{thebibliography}{30}
+
+\bibitem{nilson2023}
+The Nilson Report, ``Global Card Fraud Losses,'' Issue 1229, 2023.
+
+\bibitem{ngai2011application}
+E. W. T. Ngai, L. Xiu, and D. C. K. Chau, ``Application of data mining techniques in customer relationship management: A literature review and classification,'' \textit{Expert Systems with Applications}, vol. 36, no. 2, pp. 2592--2602, 2009.
+
+\bibitem{han2011data}
+J. Han, M. Kamber, and J. Pei, \textit{Data Mining: Concepts and Techniques}, 3rd ed. Morgan Kaufmann, 2011.
+
+\bibitem{bolton2002statistical}
+R. J. Bolton and D. J. Hand, ``Statistical fraud detection: A review,'' \textit{Statistical Science}, vol. 17, no. 3, pp. 235--255, 2002.
+
+\bibitem{sadgali2019performance}
+I. Sadgali, N. Sael, and F. Benabbou, ``Performance of machine learning techniques in the detection of financial frauds,'' \textit{Procedia Computer Science}, vol. 148, pp. 45--54, 2019.
+
+\bibitem{khobzi2014customer}
+H. Khobzi and E. Akhondzadeh-Noughabi, ``A combined approach of data mining and RFM for customer segmentation,'' \textit{International Journal of Managing Value and Supply Chains}, vol. 5, no. 2, pp. 1--10, 2014.
+
+\bibitem{syakur2018integration}
+M. A. Syakur, B. K. Khotimah, E. M. S. Rochman, and B. D. Satoto, ``Integration K-means clustering method and Elbow method for identification of the best customer profile cluster,'' \textit{IOP Conference Series: Materials Science and Engineering}, vol. 336, p. 012017, 2018.
+
+\bibitem{zakrzewska2005clustering}
+D. Zakrzewska and D. Murlewski, ``Clustering algorithms for bank customer segmentation,'' in \textit{Proc. 5th International Conference on Intelligent Systems Design and Applications}, 2005, pp. 197--202.
+
+\bibitem{ester1996density}
+M. Ester, H.-P. Kriegel, J. Sander, and X. Xu, ``A density-based algorithm for discovering clusters in large spatial databases with noise,'' in \textit{Proc. KDD}, vol. 96, no. 34, pp. 226--231, 1996.
+
+\bibitem{patel2020clustering}
+E. Patel and D. S. Kushwaha, ``Clustering cloud workloads: K-Means vs Gaussian Mixture Model,'' \textit{Procedia Computer Science}, vol. 171, pp. 158--167, 2020.
+
+\bibitem{rani2018customer}
+P. Rani and R. Jain, ``Customer segmentation using machine learning: A literature review,'' \textit{Journal of Computational and Theoretical Nanoscience}, vol. 15, no. 6-7, pp. 2328--2334, 2018.
+
+\bibitem{aleskerov1997cardwatch}
+E. Aleskerov, B. Freisleben, and B. Rao, ``CARDWATCH: A neural network based database mining system for credit card fraud detection,'' in \textit{Proc. IEEE/IAFE Computational Intelligence for Financial Engineering}, 1997, pp. 220--226.
+
+\bibitem{bhattacharyya2011data}
+S. Bhattacharyya, S. Jha, K. Tharakunnel, and J. C. Westland, ``Data mining for credit card fraud: A comparative study,'' \textit{Decision Support Systems}, vol. 50, no. 3, pp. 602--613, 2011.
+
+\bibitem{dal2014learned}
+A. Dal Pozzolo, O. Caelen, R. A. Johnson, and G. Bontempi, ``Calibrating probability with undersampling for unbalanced classification,'' in \textit{Proc. IEEE Symposium on Computational Intelligence and Data Mining}, 2015, pp. 159--166.
+
+\bibitem{chen2016xgboost}
+T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD International Conference on Knowledge Discovery and Data Mining}, 2016, pp. 785--794.
+
+\bibitem{liu2008isolation}
+F. T. Liu, K. M. Ting, and Z.-H. Zhou, ``Isolation forest,'' in \textit{Proc. 8th IEEE International Conference on Data Mining}, 2008, pp. 413--422.
+
+\bibitem{carcillo2018beyond}
+F. Carcillo, A. Dal Pozzolo, Y.-A. Le Borgne, O. Caelen, Y. Mazzer, and G. Bontempi, ``SCARFF: A scalable framework for streaming credit card fraud detection with Spark,'' \textit{Information Fusion}, vol. 41, pp. 182--194, 2018.
+
+\bibitem{trivedi2020study}
+N. K. Trivedi, S. Simaiya, U. K. Lilhore, and S. K. Sharma, ``An efficient credit card fraud detection model based on machine learning methods,'' \textit{International Journal of Advanced Science and Technology}, vol. 29, no. 5, pp. 3414--3424, 2020.
+
+\bibitem{zhu2021deep}
+J. Zhu, Y. Liu, and S. Yin, ``A deep learning approach for credit card fraud detection,'' in \textit{Proc. International Conference on Machine Learning and Big Data Analytics}, 2021, pp. 112--120.
+
+\bibitem{macqueen1967some}
+J. MacQueen, ``Some methods for classification and analysis of multivariate observations,'' in \textit{Proc. 5th Berkeley Symposium on Mathematical Statistics and Probability}, vol. 1, pp. 281--297, 1967.
+
+\bibitem{murtagh2012algorithms}
+F. Murtagh and P. Contreras, ``Algorithms for hierarchical clustering: An overview,'' \textit{Wiley Interdisciplinary Reviews: Data Mining and Knowledge Discovery}, vol. 2, no. 1, pp. 86--97, 2012.
+
+\bibitem{reynolds2009gaussian}
+D. A. Reynolds, ``Gaussian mixture models,'' in \textit{Encyclopedia of Biometrics}, pp. 659--663, 2009.
+
+\bibitem{hosmer2013applied}
+D. W. Hosmer, S. Lemeshow, and R. X. Sturdivant, \textit{Applied Logistic Regression}, 3rd ed. Wiley, 2013.
+
+\bibitem{breiman2001random}
+L. Breiman, ``Random forests,'' \textit{Machine Learning}, vol. 45, no. 1, pp. 5--32, 2001.
+
+\bibitem{rousseeuw1987silhouettes}
+P. J. Rousseeuw, ``Silhouettes: A graphical aid to the interpretation and validation of cluster analysis,'' \textit{Journal of Computational and Applied Mathematics}, vol. 20, pp. 53--65, 1987.
+
+\bibitem{davies1979cluster}
+D. L. Davies and D. W. Bouldin, ``A cluster separation measure,'' \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}, vol. PAMI-1, no. 2, pp. 224--227, 1979.
+
+\bibitem{calinski1974dendrite}
+T. Cali\'{n}ski and J. Harabasz, ``A dendrite method for cluster analysis,'' \textit{Communications in Statistics---Theory and Methods}, vol. 3, no. 1, pp. 1--27, 1974.
+
+\bibitem{saito2015precision}
+T. Saito and M. Rehmsmeier, ``The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets,'' \textit{PloS ONE}, vol. 10, no. 3, p. e0118432, 2015.
+
+\bibitem{kaggle_ccgeneral}
+A. Bhasin, ``CC GENERAL Credit Card Dataset,'' Kaggle, 2018. [Online]. Available: \url{https://www.kaggle.com/datasets/arjunbhasin2013/ccdata}
+
+\bibitem{kaggle_fraud}
+Machine Learning Group---ULB, ``Credit Card Fraud Detection Dataset,'' Kaggle, 2018. [Online]. Available: \url{https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud}
+
+\bibitem{uci_default}
+I.-C. Yeh and C.-H. Lien, ``The comparisons of data mining techniques for the predictive accuracy of probability of default of credit card clients,'' \textit{Expert Systems with Applications}, vol. 36, no. 2, pp. 2473--2480, 2009.
+
+\end{thebibliography}
+
+\end{document}

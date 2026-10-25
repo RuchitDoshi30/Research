@@ -1,0 +1,5 @@
+Algorithm,Clusters,Silhouette ((up)),Davies-Bouldin ((down)),Calinski-Harabasz ((up))
+K-Means,3,0.2376,1.4564,2846.2571
+Hierarchical,3,0.1808,1.6443,2050.65
+DBSCAN,2,0.3707,0.7163,120.7494
+GMM,10,0.0053,2.5924,703.0513
