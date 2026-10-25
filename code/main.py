@@ -1,5 +1,5 @@
 # ================================================================================
-#  MINI PROJECT: Customer Segmentation and Fraud Detection in Banking
+#  MINI PROJECT: Customer Segmentation and Clustering in Banking
 #                Using Data Mining Techniques
 #
 #  Course  : Data Warehousing and Data Mining (DWDM) - Semester 5
