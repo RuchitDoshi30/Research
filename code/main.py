@@ -22,6 +22,8 @@ import matplotlib
 matplotlib.use('Agg')                 # Non-interactive backend for saving plots
 import matplotlib.pyplot as plt
 import seaborn as sns
+from matplotlib.ticker import FuncFormatter, MaxNLocator
+from matplotlib.colors import ListedColormap
 
 from sklearn.preprocessing import StandardScaler, LabelEncoder, MinMaxScaler
 from sklearn.cluster import KMeans, DBSCAN, AgglomerativeClustering
@@ -67,6 +69,87 @@ sns.set_palette("husl")
 COLORS = ['#2ecc71', '#3498db', '#e74c3c', '#9b59b6', '#f39c12',
           '#1abc9c', '#e67e22', '#34495e', '#16a085', '#c0392b']
 
+# -- Journal-ready figure settings ---------------------------------------------
+# Every figure is drawn at the physical size it occupies in the IEEE paper
+# (3.5 in = one column, 7.16 in = full text width) with ~8 pt text, so the PNGs
+# are placed at 100 % scale (no shrinking) and stay readable at default PDF zoom.
+COL_W, FULL_W = 3.5, 7.16
+
+plt.rcParams.update({
+    'font.family': 'DejaVu Sans', 'font.size': 8,
+    'axes.titlesize': 8.5, 'axes.titleweight': 'bold', 'axes.titlepad': 4,
+    'axes.labelsize': 8, 'xtick.labelsize': 7.5, 'ytick.labelsize': 7.5,
+    'legend.fontsize': 7, 'legend.framealpha': 0.9, 'legend.borderpad': 0.3,
+    'axes.linewidth': 0.6, 'grid.linewidth': 0.4, 'lines.linewidth': 1.5,
+    'lines.markersize': 4, 'figure.dpi': 100, 'savefig.dpi': 300,
+    'savefig.bbox': 'tight', 'savefig.pad_inches': 0.04,
+})
+
+# Short, readable feature names for axes/titles
+FEATURE_LABELS = {
+    'BALANCE': 'Balance', 'BALANCE_FREQUENCY': 'Balance freq.', 'PURCHASES': 'Purchases',
+    'ONEOFF_PURCHASES': 'One-off purch.', 'INSTALLMENTS_PURCHASES': 'Installment purch.',
+    'CASH_ADVANCE': 'Cash advance', 'PURCHASES_FREQUENCY': 'Purchase freq.',
+    'ONEOFF_PURCHASES_FREQUENCY': 'One-off freq.',
+    'PURCHASES_INSTALLMENTS_FREQUENCY': 'Installment freq.',
+    'CASH_ADVANCE_FREQUENCY': 'Cash adv. freq.', 'CASH_ADVANCE_TRX': 'Cash adv. trx',
+    'PURCHASES_TRX': 'Purchase trx', 'CREDIT_LIMIT': 'Credit limit', 'PAYMENTS': 'Payments',
+    'MINIMUM_PAYMENTS': 'Min. payments', 'PRC_FULL_PAYMENT': 'Full-payment ratio',
+    'TENURE': 'Tenure',
+}
+
+
+def save_fig(fig, path):
+    """Tight layout + save at 300 dpi; no text scaling is applied afterwards."""
+    fig.tight_layout(pad=0.4, w_pad=0.9, h_pad=0.9)
+    fig.savefig(path)
+    plt.close(fig)
+
+
+def kfmt(v, pos=None):
+    """Compact tick labels: 6000 -> 6k, 12500 -> 12.5k."""
+    if abs(v) >= 1000:
+        return f'{v / 1000:g}k'
+    return f'{v:g}'
+
+
+def label_bars(ax, bars, fmt='{:.3f}', rotation=0, pad=2, size=None):
+    """Write each bar's value just above the bar."""
+    for b in bars:
+        h = b.get_height()
+        ax.annotate(fmt.format(h), (b.get_x() + b.get_width() / 2, h),
+                    xytext=(0, pad), textcoords='offset points', ha='center',
+                    va='bottom', rotation=rotation, fontsize=size)
+
+
+def headroom(ax, frac=0.18):
+    """Add empty space above the tallest bar so value labels never touch the title."""
+    lo, hi = ax.get_ylim()
+    ax.set_ylim(lo, hi + (hi - lo) * frac)
+
+
+def legend_below(ax, ncol, **kw):
+    """Place a legend under the axes so it never covers the data."""
+    leg = ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=ncol, frameon=False,
+                    handletextpad=0.2, columnspacing=0.9, **kw)
+    handles = getattr(leg, 'legend_handles', None) or getattr(leg, 'legendHandles', [])
+    for h in handles:                       # uniform, readable legend markers
+        if hasattr(h, 'set_sizes'):
+            h.set_sizes([22])
+        h.set_alpha(1)
+    return leg
+
+
+def ygrid(ax):
+    """Light horizontal grid only (no vertical lines cutting through bars)."""
+    ax.grid(False)
+    ax.grid(True, axis='y', alpha=0.3)
+
+
+def wrap_names(names):
+    return [n.replace(' ', '\n', 1) if len(n) > 9 else n for n in names]
+
+
 print("=" * 80)
 print("  MINI PROJECT: Customer Segmentation & Fraud Detection in Banking")
 print("  Using Data Mining Techniques")
@@ -84,21 +167,21 @@ print("-" * 80)
 # Source: https://www.kaggle.com/datasets/arjunbhasin2013/ccdata
 # ~8950 active credit card holders, 18 behavioral features
 print("\n[Dataset 1] Credit Card Customer Behavioral Data (CC GENERAL)")
-df_cc = pd.read_csv(os.path.join(DATA_DIR, "CC_GENERAL.csv"))
+df_cc = pd.read_csv(os.path.join(DATA_DIR, "dataset1_cc_general.csv"))
 print(f"   Loaded from local file  ->  {df_cc.shape}")
 
 # --- Dataset 2: Credit Card Fraud Detection (Kaggle - ULB) --------------
 # Source: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
 # 284,807 transactions, PCA features V1-V28 + Time + Amount + Class
 print("\n[Dataset 2] Credit Card Fraud Detection (European Transactions)")
-df_fraud_raw = pd.read_csv(os.path.join(DATA_DIR, "creditcard.csv"), nrows=20000)
+df_fraud_raw = pd.read_csv(os.path.join(DATA_DIR, "dataset2_fraud_detection.csv"), nrows=20000)
 print(f"   Loaded from local file  ->  {df_fraud_raw.shape}")
 
 # --- Dataset 3: Default of Credit Card Clients (UCI ML Repository) ------
 # Source: https://www.kaggle.com/datasets/uciml/default-of-credit-card-clients-dataset
 # 30,000 observations with demographics + payment history
 print("\n[Dataset 3] Default of Credit Card Clients (Taiwan)")
-df_default = pd.read_csv(os.path.join(DATA_DIR, "UCI_Credit_Card.csv"), nrows=15000)
+df_default = pd.read_csv(os.path.join(DATA_DIR, "dataset3_default_clients.csv"), nrows=15000)
 print(f"   Loaded from local file  ->  {df_default.shape}")
 
 # --- Save raw datasets -----------------------------------------------------
@@ -123,35 +206,38 @@ print(f"   Missing vals : {df_cc.isnull().sum().sum()}")
 print(f"   Columns      : {list(df_cc.columns)}")
 print(df_cc.describe().round(2))
 
-fig, axes = plt.subplots(2, 3, figsize=(18, 10))
-fig.suptitle("Dataset 1 - Credit Card Customer Behavioral Data (EDA)", fontsize=16, fontweight='bold')
-
-# Distribution of key features
+fig, axes = plt.subplots(2, 3, figsize=(FULL_W, 3.7))
 num_cols_cc = ['BALANCE', 'PURCHASES', 'CASH_ADVANCE', 'CREDIT_LIMIT', 'PAYMENTS', 'TENURE']
 for i, col in enumerate(num_cols_cc):
-    ax = axes[i//3][i%3]
+    ax = axes[i // 3][i % 3]
     if col in df_cc.columns:
-        df_cc[col].hist(bins=40, ax=ax, color=COLORS[i], alpha=0.75, edgecolor='white')
-        ax.set_title(col, fontsize=12, fontweight='bold')
-        ax.set_ylabel('Frequency')
-        ax.grid(True, alpha=0.3)
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(SEG_OUT, "01_eda_cc_general.png"), dpi=150, bbox_inches='tight')
-plt.close()
+        ax.hist(df_cc[col].dropna(), bins=40, color=COLORS[i], alpha=0.85,
+                edgecolor='white', linewidth=0.3)
+        ax.set_title(FEATURE_LABELS.get(col, col))
+        ax.xaxis.set_major_locator(MaxNLocator(4))
+        ax.xaxis.set_major_formatter(FuncFormatter(kfmt))
+        ax.yaxis.set_major_formatter(FuncFormatter(kfmt))
+        if i % 3 == 0:
+            ax.set_ylabel('Frequency')
+        if i // 3 == 1:
+            ax.set_xlabel('Value')
+save_fig(fig, os.path.join(SEG_OUT, "01_eda_cc_general.png"))
 print("   [CHART] 01_eda_cc_general.png saved")
 
 # Correlation heatmap
-fig, ax = plt.subplots(figsize=(14, 10))
+fig, ax = plt.subplots(figsize=(FULL_W, 5.6))
 numeric_cc = df_cc.select_dtypes(include=[np.number])
-corr = numeric_cc.corr()
-mask = np.triu(np.ones_like(corr, dtype=bool))
-sns.heatmap(corr, mask=mask, annot=True, fmt='.2f', cmap='RdYlBu_r', ax=ax,
-            linewidths=0.5, square=True, cbar_kws={'shrink': 0.8},
-            annot_kws={'size': 7})
-ax.set_title("Dataset 1 - Correlation Heatmap", fontsize=14, fontweight='bold')
-plt.tight_layout()
-plt.savefig(os.path.join(SEG_OUT, "02_correlation_heatmap.png"), dpi=150, bbox_inches='tight')
-plt.close()
+corr = numeric_cc.corr().rename(index=FEATURE_LABELS, columns=FEATURE_LABELS)
+corr = corr.iloc[1:, :-1]                         # drop the empty first row / last column
+mask = np.triu(np.ones_like(corr, dtype=bool), k=1)
+sns.heatmap(corr, mask=mask, annot=True, fmt='.2f', cmap='RdYlBu_r', vmin=-1, vmax=1,
+            ax=ax, linewidths=0.4, linecolor='white', annot_kws={'size': 6.5},
+            cbar_kws={'shrink': 0.8, 'pad': 0.02, 'label': 'Pearson correlation'})
+ax.grid(False)
+ax.tick_params(axis='x', labelsize=7, rotation=45)
+ax.tick_params(axis='y', labelsize=7, rotation=0)
+plt.setp(ax.get_xticklabels(), ha='right', rotation_mode='anchor')
+save_fig(fig, os.path.join(SEG_OUT, "02_correlation_heatmap.png"))
 print("   [CHART] 02_correlation_heatmap.png saved")
 
 
@@ -295,53 +381,60 @@ print(f"   Calinski-Harabasz   : {chi_km_best:.2f}")
 print(f"   Inertia             : {km.inertia_:.2f}")
 
 # K-Means Visualization
-fig, axes = plt.subplots(2, 2, figsize=(16, 14))
-fig.suptitle("K-Means Clustering Analysis", fontsize=16, fontweight='bold')
+fig, axes = plt.subplots(2, 2, figsize=(FULL_W, 5.4))
 
 # Elbow Method
-axes[0][0].plot(K_range, inertias, 'o-', color='#3498db', lw=2.5, markersize=8)
-axes[0][0].axvline(opt_k, color='#e74c3c', ls='--', lw=2, label=f'Optimal k={opt_k}')
-axes[0][0].set_title('Elbow Method (Inertia vs K)', fontsize=13, fontweight='bold')
-axes[0][0].set_xlabel('Number of Clusters (k)', fontsize=11)
-axes[0][0].set_ylabel('Inertia (WCSS)', fontsize=11)
-axes[0][0].legend(fontsize=11); axes[0][0].grid(True, alpha=0.3)
+ax = axes[0][0]
+ax.plot(list(K_range), inertias, 'o-', color='#3498db')
+ax.axvline(opt_k, color='#e74c3c', ls='--', lw=1.2, label=f'k = {opt_k}')
+ax.set_title('Elbow method')
+ax.set_xlabel('Number of clusters (k)'); ax.set_ylabel('Inertia (WCSS)')
+ax.yaxis.set_major_formatter(FuncFormatter(kfmt))
+ax.legend(loc='upper right'); ax.grid(True, alpha=0.3)
 
 # Silhouette Scores
-axes[0][1].plot(K_range, sil_km, 's-', color='#2ecc71', lw=2.5, markersize=8)
-axes[0][1].axvline(opt_k, color='#e74c3c', ls='--', lw=2, label=f'Best k={opt_k}')
-axes[0][1].set_title('Silhouette Score vs K', fontsize=13, fontweight='bold')
-axes[0][1].set_xlabel('Number of Clusters (k)', fontsize=11)
-axes[0][1].set_ylabel('Silhouette Score', fontsize=11)
-axes[0][1].legend(fontsize=11); axes[0][1].grid(True, alpha=0.3)
+ax = axes[0][1]
+ax.plot(list(K_range), sil_km, 's-', color='#2ecc71')
+ax.axvline(opt_k, color='#e74c3c', ls='--', lw=1.2, label=f'Best k = {opt_k}')
+ax.annotate(f'{max(sil_km):.4f}', (opt_k, max(sil_km)), xytext=(6, 4),
+            textcoords='offset points', fontweight='bold')
+ax.set_title('Silhouette score vs. k')
+ax.set_xlabel('Number of clusters (k)'); ax.set_ylabel('Silhouette score')
+ax.legend(loc='upper right'); ax.grid(True, alpha=0.3)
+headroom(ax, 0.12)
 
 # PCA 2D Scatter
-scatter_km = axes[1][0].scatter(X_seg_2D[:, 0], X_seg_2D[:, 1],
-                                 c=km_labels, cmap='tab10', s=15, alpha=0.6)
+ax = axes[1][0]
+for c in range(opt_k):
+    m = km_labels == c
+    ax.scatter(X_seg_2D[m, 0], X_seg_2D[m, 1], s=2.5, alpha=0.55, linewidths=0,
+               color=COLORS[c % len(COLORS)], label=f'Cluster {c}')
 centers_2D = pca_seg.transform(km.cluster_centers_)
-axes[1][0].scatter(centers_2D[:, 0], centers_2D[:, 1],
-                    c='black', marker='X', s=250, edgecolors='white', linewidths=2,
-                    label='Centroids', zorder=5)
-axes[1][0].set_title(f'K-Means Clusters (k={opt_k}) - PCA Projection', fontsize=13, fontweight='bold')
-axes[1][0].set_xlabel(f'PC1 ({pca_seg.explained_variance_ratio_[0]*100:.1f}%)', fontsize=11)
-axes[1][0].set_ylabel(f'PC2 ({pca_seg.explained_variance_ratio_[1]*100:.1f}%)', fontsize=11)
-axes[1][0].legend(fontsize=11); axes[1][0].grid(True, alpha=0.3)
-plt.colorbar(scatter_km, ax=axes[1][0], label='Cluster')
+ax.scatter(centers_2D[:, 0], centers_2D[:, 1], c='black', marker='X', s=50,
+           edgecolors='white', linewidths=0.8, label='Centroid', zorder=5)
+ax.set_title(f'K-Means clusters (k = {opt_k}), PCA projection')
+ax.set_xlabel(f'PC1 ({pca_seg.explained_variance_ratio_[0]*100:.1f}%)')
+ax.set_ylabel(f'PC2 ({pca_seg.explained_variance_ratio_[1]*100:.1f}%)')
+ax.grid(True, alpha=0.3)
+legend_below(ax, ncol=opt_k + 1)
 
 # Cluster Distribution
+ax = axes[1][1]
 cluster_counts = pd.Series(km_labels).value_counts().sort_index()
-bars = axes[1][1].bar(cluster_counts.index, cluster_counts.values,
-                       color=[COLORS[i % len(COLORS)] for i in range(len(cluster_counts))],
-                       edgecolor='white', linewidth=1.5)
-for bar, val in zip(bars, cluster_counts.values):
-    axes[1][1].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 20,
-                     str(val), ha='center', fontweight='bold', fontsize=11)
-axes[1][1].set_title('Cluster Size Distribution', fontsize=13, fontweight='bold')
-axes[1][1].set_xlabel('Cluster', fontsize=11); axes[1][1].set_ylabel('Count', fontsize=11)
-axes[1][1].grid(True, alpha=0.3, axis='y')
+bars = ax.bar(cluster_counts.index, cluster_counts.values,
+              color=[COLORS[i % len(COLORS)] for i in cluster_counts.index],
+              edgecolor='white', linewidth=0.8, width=0.7)
+for b, val in zip(bars, cluster_counts.values):
+    ax.annotate(f'{val:,}\n({val / len(km_labels) * 100:.1f}%)',
+                (b.get_x() + b.get_width() / 2, val), xytext=(0, 2),
+                textcoords='offset points', ha='center', va='bottom', fontweight='bold')
+headroom(ax, 0.28)
+ax.set_xticks(list(cluster_counts.index))
+ax.set_title('Cluster size distribution')
+ax.set_xlabel('Cluster'); ax.set_ylabel('Customers')
+ygrid(ax)
 
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(SEG_OUT, "03_kmeans_analysis.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(SEG_OUT, "03_kmeans_analysis.png"))
 print("   [CHART] 03_kmeans_analysis.png saved")
 
 
@@ -372,31 +465,33 @@ print(f"   Davies-Bouldin Index: {dbi_hc:.4f}")
 print(f"   Calinski-Harabasz   : {chi_hc:.2f}")
 
 # Hierarchical Visualization
-fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-fig.suptitle("Hierarchical (Agglomerative) Clustering Analysis", fontsize=16, fontweight='bold')
+fig, axes = plt.subplots(1, 2, figsize=(FULL_W, 3.1))
 
-# Dendrogram (on a sample for readability)
-sample_idx = np.random.choice(len(X_seg), min(80, len(X_seg)), replace=False)
+# Dendrogram (on a reproducible random sample for readability)
+rng_dendro = np.random.RandomState(42)
+sample_idx = rng_dendro.choice(len(X_seg), min(80, len(X_seg)), replace=False)
 Z = linkage(X_seg[sample_idx], method='ward')
-dendrogram(Z, ax=axes[0], leaf_rotation=90, leaf_font_size=6,
-           color_threshold=Z[-opt_k+1, 2], above_threshold_color='gray')
-axes[0].axhline(Z[-opt_k+1, 2], color='red', ls='--', lw=2, label=f'Cut at k={opt_k}')
-axes[0].set_title(f'Dendrogram (Ward Linkage, {len(sample_idx)} samples)', fontsize=13, fontweight='bold')
-axes[0].set_xlabel('Sample Index'); axes[0].set_ylabel('Distance')
-axes[0].legend(fontsize=11)
+cut_height = Z[-opt_k + 1, 2]
+dendrogram(Z, ax=axes[0], no_labels=True, color_threshold=cut_height,
+           above_threshold_color='gray')
+axes[0].axhline(cut_height, color='red', ls='--', lw=1.2, label=f'Cut at k = {opt_k}')
+axes[0].set_title(f'Dendrogram (Ward, {len(sample_idx)} sampled customers)')
+axes[0].set_xlabel('Sampled customers'); axes[0].set_ylabel('Ward distance')
+axes[0].legend(loc='upper right'); axes[0].grid(False)
 
 # PCA 2D Scatter
-scatter_hc = axes[1].scatter(X_seg_2D[:, 0], X_seg_2D[:, 1],
-                               c=hc_labels, cmap='tab10', s=15, alpha=0.6)
-axes[1].set_title(f'Hierarchical Clusters (k={opt_k}) - PCA Projection', fontsize=13, fontweight='bold')
-axes[1].set_xlabel(f'PC1 ({pca_seg.explained_variance_ratio_[0]*100:.1f}%)', fontsize=11)
-axes[1].set_ylabel(f'PC2 ({pca_seg.explained_variance_ratio_[1]*100:.1f}%)', fontsize=11)
-axes[1].grid(True, alpha=0.3)
-plt.colorbar(scatter_hc, ax=axes[1], label='Cluster')
+ax = axes[1]
+for c in range(opt_k):
+    m = hc_labels == c
+    ax.scatter(X_seg_2D[m, 0], X_seg_2D[m, 1], s=2.5, alpha=0.55, linewidths=0,
+               color=COLORS[c % len(COLORS)], label=f'Cluster {c} (n={m.sum():,})')
+ax.set_title(f'Hierarchical clusters (k = {opt_k}), PCA projection')
+ax.set_xlabel(f'PC1 ({pca_seg.explained_variance_ratio_[0]*100:.1f}%)')
+ax.set_ylabel(f'PC2 ({pca_seg.explained_variance_ratio_[1]*100:.1f}%)')
+ax.grid(True, alpha=0.3)
+legend_below(ax, ncol=opt_k)
 
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(SEG_OUT, "04_hierarchical_analysis.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(SEG_OUT, "04_hierarchical_analysis.png"))
 print("   [CHART] 04_hierarchical_analysis.png saved")
 
 
@@ -449,39 +544,37 @@ print(f"   Davies-Bouldin Index: {dbi_db:.4f}")
 print(f"   Calinski-Harabasz   : {chi_db:.2f}")
 
 # DBSCAN Visualization
-fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-fig.suptitle("DBSCAN Clustering Analysis", fontsize=16, fontweight='bold')
+fig, axes = plt.subplots(1, 2, figsize=(FULL_W, 3.1))
 
-# Cluster plot with noise highlighted
-unique_labels = set(db_labels)
-for label in sorted(unique_labels):
-    mask = db_labels == label
-    if label == -1:
-        axes[0].scatter(X_seg_2D[mask, 0], X_seg_2D[mask, 1],
-                         c='red', marker='x', s=30, alpha=0.4, label='Noise')
-    else:
-        axes[0].scatter(X_seg_2D[mask, 0], X_seg_2D[mask, 1],
-                         c=COLORS[label % len(COLORS)], s=15, alpha=0.6,
-                         label=f'Cluster {label}')
-axes[0].set_title(f'DBSCAN Clusters (eps={best_eps}, min_samples={best_ms})',
-                   fontsize=13, fontweight='bold')
-axes[0].set_xlabel(f'PC1', fontsize=11); axes[0].set_ylabel(f'PC2', fontsize=11)
-axes[0].legend(fontsize=9, loc='best'); axes[0].grid(True, alpha=0.3)
+# Cluster plot (noise drawn last so it stays visible)
+ax = axes[0]
+for label in sorted(l for l in set(db_labels) if l != -1):
+    m = db_labels == label
+    ax.scatter(X_seg_2D[m, 0], X_seg_2D[m, 1], c=COLORS[label % len(COLORS)],
+               s=3 if label == 0 else 9, alpha=0.6, linewidths=0,
+               label=f'C{label} ({m.sum():,})')
+m_noise = db_labels == -1
+ax.scatter(X_seg_2D[m_noise, 0], X_seg_2D[m_noise, 1], c='red', marker='x', s=6,
+           alpha=0.6, linewidths=0.5, label=f'Noise ({m_noise.sum():,})', zorder=4)
+ax.set_title(f'DBSCAN (eps = {best_eps}, MinPts = {best_ms})')
+ax.set_xlabel('PC1'); ax.set_ylabel('PC2'); ax.grid(True, alpha=0.3)
+legend_below(ax, ncol=3)
 
 # Cluster size distribution
-if nc_db > 0:
-    cl_sizes = pd.Series(db_labels[db_labels != -1]).value_counts().sort_index()
-    noise_count = pd.Series({'Noise': nn_db})
-    all_sizes = pd.concat([cl_sizes.rename({i: f'C{i}' for i in cl_sizes.index}), noise_count])
-    colors_bar = [COLORS[i % len(COLORS)] for i in range(len(cl_sizes))] + ['red']
-    all_sizes.plot(kind='bar', ax=axes[1], color=colors_bar, edgecolor='white', linewidth=1.5)
-    axes[1].set_title('DBSCAN Cluster Sizes', fontsize=13, fontweight='bold')
-    axes[1].set_ylabel('Count'); axes[1].grid(True, alpha=0.3, axis='y')
-    axes[1].tick_params(axis='x', rotation=0)
+ax = axes[1]
+cl_sizes = pd.Series(db_labels[db_labels != -1]).value_counts().sort_index()
+names_db = [f'C{i}' for i in cl_sizes.index] + ['Noise']
+vals_db = list(cl_sizes.values) + [nn_db]
+cols_db = [COLORS[i % len(COLORS)] for i in cl_sizes.index] + ['red']
+bars = ax.bar(names_db, vals_db, color=cols_db, edgecolor='white', linewidth=0.8, width=0.6)
+for b, v in zip(bars, vals_db):
+    ax.annotate(f'{v:,}', (b.get_x() + b.get_width() / 2, v), xytext=(0, 2),
+                textcoords='offset points', ha='center', va='bottom', fontweight='bold')
+headroom(ax, 0.12)
+ax.set_title('DBSCAN cluster sizes'); ax.set_ylabel('Customers')
+ygrid(ax)
 
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(SEG_OUT, "05_dbscan_analysis.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(SEG_OUT, "05_dbscan_analysis.png"))
 print("   [CHART] 05_dbscan_analysis.png saved")
 
 
@@ -521,40 +614,42 @@ print(f"   Calinski-Harabasz   : {chi_gmm:.2f}")
 print(f"   Log-Likelihood      : {gmm.score(X_seg):.4f}")
 
 # GMM Visualization
-fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle("Gaussian Mixture Model (GMM) Analysis", fontsize=16, fontweight='bold')
+fig, axes = plt.subplots(1, 3, figsize=(FULL_W, 2.8))
 
 # BIC + AIC
-axes[0].plot(list(gmm_range), bic_scores, 'o-', color='#3498db', lw=2.5, label='BIC', markersize=8)
-axes[0].plot(list(gmm_range), aic_scores, 's--', color='#e74c3c', lw=2.5, label='AIC', markersize=8)
-axes[0].axvline(opt_n, color='#2ecc71', ls=':', lw=2, label=f'Optimal n={opt_n}')
-axes[0].set_title('BIC & AIC vs Components', fontsize=13, fontweight='bold')
-axes[0].set_xlabel('Number of Components'); axes[0].set_ylabel('Score')
-axes[0].legend(fontsize=11); axes[0].grid(True, alpha=0.3)
+ax = axes[0]
+ax.plot(list(gmm_range), bic_scores, 'o-', color='#3498db', label='BIC')
+ax.plot(list(gmm_range), aic_scores, 's--', color='#e74c3c', label='AIC')
+ax.axvline(opt_n, color='#2ecc71', ls=':', lw=1.5, label=f'n = {opt_n}')
+ax.set_title('BIC and AIC')
+ax.set_xlabel('Components'); ax.set_ylabel('Information criterion')
+ax.yaxis.set_major_formatter(FuncFormatter(kfmt))
+ax.legend(loc='upper right'); ax.grid(True, alpha=0.3)
 
-# PCA 2D Scatter
-scatter_gmm = axes[1].scatter(X_seg_2D[:, 0], X_seg_2D[:, 1],
-                                c=gmm_labels, cmap='tab10', s=15, alpha=0.6)
-axes[1].set_title(f'GMM Clusters (n={opt_n}) - PCA Projection', fontsize=13, fontweight='bold')
-axes[1].set_xlabel(f'PC1'); axes[1].set_ylabel(f'PC2')
-axes[1].grid(True, alpha=0.3)
-plt.colorbar(scatter_gmm, ax=axes[1], label='Cluster')
+# PCA 2D Scatter with a discrete colour bar
+ax = axes[1]
+cmap_gmm = ListedColormap([COLORS[i % len(COLORS)] for i in range(opt_n)])
+sc = ax.scatter(X_seg_2D[:, 0], X_seg_2D[:, 1], c=gmm_labels, cmap=cmap_gmm,
+                vmin=-0.5, vmax=opt_n - 0.5, s=2.5, alpha=0.6, linewidths=0)
+cb = fig.colorbar(sc, ax=ax, ticks=list(range(opt_n)), fraction=0.06, pad=0.02)
+cb.set_label('Cluster'); cb.ax.tick_params(labelsize=6.5)
+cb.solids.set_alpha(1)
+ax.set_title(f'GMM clusters (n = {opt_n}), PCA')
+ax.set_xlabel('PC1'); ax.set_ylabel('PC2'); ax.grid(True, alpha=0.3)
 
-# Cluster distribution
+# Cluster distribution (counts written vertically so neighbours never collide)
+ax = axes[2]
 cluster_counts_gmm = pd.Series(gmm_labels).value_counts().sort_index()
-bars_gmm = axes[2].bar(cluster_counts_gmm.index, cluster_counts_gmm.values,
-                         color=[COLORS[i % len(COLORS)] for i in range(len(cluster_counts_gmm))],
-                         edgecolor='white', linewidth=1.5)
-for bar, val in zip(bars_gmm, cluster_counts_gmm.values):
-    axes[2].text(bar.get_x() + bar.get_width()/2, bar.get_height() + 20,
-                  str(val), ha='center', fontweight='bold', fontsize=11)
-axes[2].set_title('GMM Cluster Size Distribution', fontsize=13, fontweight='bold')
-axes[2].set_xlabel('Cluster'); axes[2].set_ylabel('Count')
-axes[2].grid(True, alpha=0.3, axis='y')
+bars = ax.bar(cluster_counts_gmm.index, cluster_counts_gmm.values,
+              color=[COLORS[i % len(COLORS)] for i in cluster_counts_gmm.index],
+              edgecolor='white', linewidth=0.8, width=0.75)
+label_bars(ax, bars, fmt='{:,.0f}', rotation=90, size=6.5)
+headroom(ax, 0.3)
+ax.set_xticks(list(cluster_counts_gmm.index))
+ax.set_title('GMM cluster sizes'); ax.set_xlabel('Cluster'); ax.set_ylabel('Customers')
+ygrid(ax)
 
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(SEG_OUT, "06_gmm_analysis.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(SEG_OUT, "06_gmm_analysis.png"))
 print("   [CHART] 06_gmm_analysis.png saved")
 
 
@@ -578,43 +673,26 @@ print(seg_comparison.round(4).to_string())
 seg_comparison.round(4).to_csv(os.path.join(COMP_OUT, "segmentation_comparison.csv"))
 
 # Comparison bar chart
-fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-fig.suptitle("Customer Segmentation - Algorithm Comparison", fontsize=16, fontweight='bold')
+fig, axes = plt.subplots(1, 3, figsize=(FULL_W, 2.7))
 
 algos = seg_comparison.index.tolist()
 x = np.arange(len(algos))
 bar_colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
+panels = [('Silhouette ((up))', 'Silhouette (higher is better)', '{:.4f}'),
+          ('Davies-Bouldin ((down))', 'Davies-Bouldin (lower is better)', '{:.3f}'),
+          ('Calinski-Harabasz ((up))', 'Calinski-Harabasz (higher is better)', '{:,.0f}')]
+short_titles = ['Silhouette \u2191', 'Davies-Bouldin \u2193', 'Calinski-Harabasz \u2191']
+for ax, (col, _, fmt), ttl in zip(axes, panels, short_titles):
+    bars = ax.bar(x, seg_comparison[col], color=bar_colors, edgecolor='white',
+                  linewidth=0.8, width=0.7)
+    label_bars(ax, bars, fmt=fmt, size=7)
+    headroom(ax, 0.14)
+    ax.set_xticks(x)
+    ax.set_xticklabels(algos, rotation=25, ha='right', rotation_mode='anchor')
+    ax.set_title(ttl); ygrid(ax)
+axes[0].set_ylabel('Score')
 
-# Silhouette
-bars = axes[0].bar(x, seg_comparison['Silhouette ((up))'], color=bar_colors, edgecolor='white', linewidth=1.5)
-for bar in bars:
-    axes[0].annotate(f'{bar.get_height():.4f}', (bar.get_x()+bar.get_width()/2, bar.get_height()),
-                      ha='center', va='bottom', fontsize=10, fontweight='bold')
-axes[0].set_xticks(x); axes[0].set_xticklabels(algos, fontsize=11)
-axes[0].set_title('Silhouette Score (Higher=Better)', fontsize=13, fontweight='bold')
-axes[0].set_ylabel('Score'); axes[0].grid(True, alpha=0.3, axis='y')
-
-# Davies-Bouldin
-bars = axes[1].bar(x, seg_comparison['Davies-Bouldin ((down))'], color=bar_colors, edgecolor='white', linewidth=1.5)
-for bar in bars:
-    axes[1].annotate(f'{bar.get_height():.4f}', (bar.get_x()+bar.get_width()/2, bar.get_height()),
-                      ha='center', va='bottom', fontsize=10, fontweight='bold')
-axes[1].set_xticks(x); axes[1].set_xticklabels(algos, fontsize=11)
-axes[1].set_title('Davies-Bouldin Index (Lower=Better)', fontsize=13, fontweight='bold')
-axes[1].set_ylabel('Score'); axes[1].grid(True, alpha=0.3, axis='y')
-
-# Calinski-Harabasz
-bars = axes[2].bar(x, seg_comparison['Calinski-Harabasz ((up))'], color=bar_colors, edgecolor='white', linewidth=1.5)
-for bar in bars:
-    axes[2].annotate(f'{bar.get_height():.0f}', (bar.get_x()+bar.get_width()/2, bar.get_height()),
-                      ha='center', va='bottom', fontsize=10, fontweight='bold')
-axes[2].set_xticks(x); axes[2].set_xticklabels(algos, fontsize=11)
-axes[2].set_title('Calinski-Harabasz Score (Higher=Better)', fontsize=13, fontweight='bold')
-axes[2].set_ylabel('Score'); axes[2].grid(True, alpha=0.3, axis='y')
-
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(SEG_OUT, "07_segmentation_comparison.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(SEG_OUT, "07_segmentation_comparison.png"))
 print("   [CHART] 07_segmentation_comparison.png saved")
 
 
@@ -630,43 +708,40 @@ fraud_results = {}
 
 # --- Helper function: evaluation plots ----------------------------------
 def eval_fraud_model(name, y_true, y_pred, y_proba, save_dir):
-    """Generate confusion matrix and ROC curve for a fraud detection model."""
-    fig, axes = plt.subplots(1, 3, figsize=(20, 6))
-    fig.suptitle(f"{name} - Evaluation", fontsize=16, fontweight='bold')
+    """Generate confusion matrix, ROC and precision-recall curves for one model."""
+    fig, axes = plt.subplots(1, 3, figsize=(FULL_W, 2.6))
 
     # Confusion Matrix
     cm = confusion_matrix(y_true, y_pred)
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[0],
-                xticklabels=['Legitimate', 'Fraud'],
-                yticklabels=['Legitimate', 'Fraud'],
-                annot_kws={'size': 14})
-    axes[0].set_title('Confusion Matrix', fontsize=13, fontweight='bold')
-    axes[0].set_ylabel('Actual', fontsize=11); axes[0].set_xlabel('Predicted', fontsize=11)
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=axes[0], cbar=False,
+                xticklabels=['Legitimate', 'Fraud'], yticklabels=['Legitimate', 'Fraud'],
+                annot_kws={'size': 10, 'weight': 'bold'}, linewidths=0.5, linecolor='white')
+    axes[0].set_title('Confusion matrix')
+    axes[0].set_ylabel('Actual'); axes[0].set_xlabel('Predicted')
+    plt.setp(axes[0].get_yticklabels(), rotation=90, va='center')
 
     # ROC Curve
     fpr, tpr, _ = roc_curve(y_true, y_proba)
     auc = roc_auc_score(y_true, y_proba)
-    axes[1].plot(fpr, tpr, lw=2.5, color='#3498db', label=f'ROC-AUC = {auc:.4f}')
+    axes[1].plot(fpr, tpr, color='#3498db', label=f'AUC = {auc:.4f}')
     axes[1].fill_between(fpr, tpr, alpha=0.15, color='#3498db')
-    axes[1].plot([0,1], [0,1], 'k--', alpha=0.5)
-    axes[1].set_title('ROC Curve', fontsize=13, fontweight='bold')
-    axes[1].set_xlabel('False Positive Rate', fontsize=11)
-    axes[1].set_ylabel('True Positive Rate', fontsize=11)
-    axes[1].legend(fontsize=12); axes[1].grid(True, alpha=0.3)
+    axes[1].plot([0, 1], [0, 1], 'k--', lw=0.8, alpha=0.5)
+    axes[1].set_title('ROC curve')
+    axes[1].set_xlabel('False positive rate'); axes[1].set_ylabel('True positive rate')
+    axes[1].legend(loc='lower right'); axes[1].grid(True, alpha=0.3)
 
     # Precision-Recall Curve
     prec, rec, _ = precision_recall_curve(y_true, y_proba)
     ap = average_precision_score(y_true, y_proba)
-    axes[2].plot(rec, prec, lw=2.5, color='#e74c3c', label=f'AP = {ap:.4f}')
+    axes[2].plot(rec, prec, color='#e74c3c', label=f'AP = {ap:.4f}')
     axes[2].fill_between(rec, prec, alpha=0.15, color='#e74c3c')
-    axes[2].set_title('Precision-Recall Curve', fontsize=13, fontweight='bold')
-    axes[2].set_xlabel('Recall', fontsize=11); axes[2].set_ylabel('Precision', fontsize=11)
-    axes[2].legend(fontsize=12); axes[2].grid(True, alpha=0.3)
+    axes[2].set_title('Precision-recall curve')
+    axes[2].set_xlabel('Recall'); axes[2].set_ylabel('Precision')
+    axes[2].set_ylim(0, 1.05)
+    axes[2].legend(loc='lower left'); axes[2].grid(True, alpha=0.3)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
     fname = os.path.join(save_dir, f"{name.lower().replace(' ','_')}_eval.png")
-    plt.savefig(fname, dpi=150, bbox_inches='tight')
-    plt.close()
+    save_fig(fig, fname)
     print(f"   [CHART] {os.path.basename(fname)} saved")
     return auc, ap
 
@@ -726,13 +801,16 @@ fraud_results['Random Forest'] = {
 # Feature importance
 feat_names = [f'V{i}' for i in range(1, 29)] + ['Amount_Scaled', 'Time_Scaled']
 feat_imp = pd.Series(rf.feature_importances_, index=feat_names).sort_values(ascending=True)
-fig, ax = plt.subplots(figsize=(10, 8))
-feat_imp[-15:].plot(kind='barh', ax=ax, color='#3498db', edgecolor='white', linewidth=1)
-ax.set_title('Random Forest - Top 15 Feature Importances', fontsize=14, fontweight='bold')
-ax.set_xlabel('Importance', fontsize=12); ax.grid(True, alpha=0.3, axis='x')
-plt.tight_layout()
-plt.savefig(os.path.join(FRAUD_OUT, "rf_feature_importance.png"), dpi=150, bbox_inches='tight')
-plt.close()
+fig, ax = plt.subplots(figsize=(COL_W, 3.4))
+top15 = feat_imp[-15:]
+bars = ax.barh(top15.index, top15.values, color='#3498db', edgecolor='white', linewidth=0.4)
+for b, v in zip(bars, top15.values):
+    ax.annotate(f'{v:.3f}', (v, b.get_y() + b.get_height() / 2), xytext=(3, 0),
+                textcoords='offset points', va='center', fontsize=6.5)
+ax.set_xlim(0, top15.max() * 1.2)
+ax.set_title('Random Forest: top 15 feature importances')
+ax.set_xlabel('Gini importance'); ax.grid(False); ax.grid(True, axis='x', alpha=0.3)
+save_fig(fig, os.path.join(FRAUD_OUT, "rf_feature_importance.png"))
 print("   [CHART] rf_feature_importance.png saved")
 
 
@@ -817,39 +895,34 @@ print(fraud_comparison.round(4).to_string())
 fraud_comparison.round(4).to_csv(os.path.join(COMP_OUT, "fraud_comparison.csv"))
 
 # Combined ROC Curves
-fig, axes = plt.subplots(1, 2, figsize=(18, 7))
-fig.suptitle("Fraud Detection - Algorithm Comparison", fontsize=16, fontweight='bold')
+fig, axes = plt.subplots(1, 2, figsize=(FULL_W, 3.2))
 
 roc_colors = ['#3498db', '#2ecc71', '#e74c3c', '#9b59b6']
 for (name, res), col in zip(fraud_results.items(), roc_colors):
     fpr, tpr, _ = roc_curve(y_test, res['proba'])
-    axes[0].plot(fpr, tpr, lw=2.5, color=col, label=f"{name} (AUC={res['auc']:.4f})")
-axes[0].plot([0,1], [0,1], 'k--', alpha=0.5)
-axes[0].set_title('ROC Curves - All Algorithms', fontsize=14, fontweight='bold')
-axes[0].set_xlabel('False Positive Rate', fontsize=12)
-axes[0].set_ylabel('True Positive Rate', fontsize=12)
-axes[0].legend(fontsize=11); axes[0].grid(True, alpha=0.3)
+    axes[0].plot(fpr, tpr, color=col, label=f"{name} ({res['auc']:.4f})")
+axes[0].plot([0, 1], [0, 1], 'k--', lw=0.8, alpha=0.5)
+axes[0].set_title('ROC curves (AUC in brackets)')
+axes[0].set_xlabel('False positive rate'); axes[0].set_ylabel('True positive rate')
+axes[0].legend(loc='lower right'); axes[0].grid(True, alpha=0.3)
 
-# Bar comparison
+# Grouped bar comparison (values written vertically above each bar)
 metrics_to_plot = ['F1-Score', 'ROC-AUC', 'Avg Precision']
 x = np.arange(len(fraud_comparison))
-width = 0.25
+width = 0.26
 for i, metric in enumerate(metrics_to_plot):
-    bars = axes[1].bar(x + i*width, fraud_comparison[metric],
-                        width, label=metric, color=roc_colors[i], edgecolor='white', linewidth=1)
-    for bar in bars:
-        axes[1].annotate(f'{bar.get_height():.3f}',
-                          (bar.get_x() + bar.get_width()/2, bar.get_height()),
-                          ha='center', va='bottom', fontsize=8, fontweight='bold')
-axes[1].set_xticks(x + width)
-axes[1].set_xticklabels(fraud_comparison.index, fontsize=10, rotation=10)
-axes[1].set_title('Performance Metrics Comparison', fontsize=14, fontweight='bold')
-axes[1].set_ylabel('Score'); axes[1].legend(fontsize=10); axes[1].grid(True, alpha=0.3, axis='y')
-axes[1].set_ylim(0, 1.15)
+    bars = axes[1].bar(x + (i - 1) * width, fraud_comparison[metric], width,
+                       label=metric, color=roc_colors[i], edgecolor='white', linewidth=0.6)
+    label_bars(axes[1], bars, fmt='{:.3f}', rotation=90, size=6.5)
+axes[1].set_xticks(x)
+axes[1].set_xticklabels(wrap_names(fraud_comparison.index.tolist()))
+axes[1].set_title('Performance metrics')
+axes[1].set_ylabel('Score'); axes[1].set_ylim(0, 1.4)
+axes[1].set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+axes[1].legend(loc='upper center', ncol=3, fontsize=6.5)
+ygrid(axes[1])
 
-plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(os.path.join(FRAUD_OUT, "fraud_comparison_all.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(FRAUD_OUT, "fraud_comparison_all.png"))
 print("   [CHART] fraud_comparison_all.png saved")
 
 
@@ -862,46 +935,37 @@ print("  OVERALL PROJECT SUMMARY")
 print("=" * 80)
 
 # Grand comparison chart
-fig, axes = plt.subplots(1, 2, figsize=(20, 8))
-fig.suptitle("Mini Project - Complete Results Overview",
-             fontsize=18, fontweight='bold', y=1.02)
+fig, axes = plt.subplots(1, 2, figsize=(FULL_W, 3.0))
 
 # Part A: Segmentation
 seg_algos = ['K-Means', 'Hierarchical', 'DBSCAN', 'GMM']
 sil_scores = [seg_results[a]['silhouette'] for a in seg_algos]
 x_seg = np.arange(len(seg_algos))
 bars_a = axes[0].bar(x_seg, sil_scores, color=bar_colors, edgecolor='white',
-                      linewidth=2, width=0.6)
-for bar in bars_a:
-    axes[0].annotate(f'{bar.get_height():.4f}',
-                      (bar.get_x() + bar.get_width()/2, bar.get_height()),
-                      ha='center', va='bottom', fontsize=11, fontweight='bold')
-axes[0].set_xticks(x_seg); axes[0].set_xticklabels(seg_algos, fontsize=12)
-axes[0].set_title('Part A: Customer Segmentation\n(Silhouette Score - Higher is Better)',
-                   fontsize=14, fontweight='bold')
-axes[0].set_ylabel('Silhouette Score', fontsize=12)
-axes[0].grid(True, alpha=0.3, axis='y')
+                     linewidth=0.8, width=0.65)
+label_bars(axes[0], bars_a, fmt='{:.4f}', size=7.5)
+headroom(axes[0], 0.14)
+axes[0].set_xticks(x_seg)
+axes[0].set_xticklabels(wrap_names(seg_algos))
+axes[0].set_title('Part A: Segmentation (Silhouette \u2191)')
+axes[0].set_ylabel('Silhouette score')
+ygrid(axes[0])
 
 # Part B: Fraud Detection
 fraud_algos = list(fraud_results.keys())
 auc_scores = [fraud_results[a]['auc'] for a in fraud_algos]
 x_fraud = np.arange(len(fraud_algos))
 bars_b = axes[1].bar(x_fraud, auc_scores, color=bar_colors, edgecolor='white',
-                      linewidth=2, width=0.6)
-for bar in bars_b:
-    axes[1].annotate(f'{bar.get_height():.4f}',
-                      (bar.get_x() + bar.get_width()/2, bar.get_height()),
-                      ha='center', va='bottom', fontsize=11, fontweight='bold')
-axes[1].set_xticks(x_fraud); axes[1].set_xticklabels(fraud_algos, fontsize=10, rotation=10)
-axes[1].set_title('Part B: Fraud Detection\n(ROC-AUC - Higher is Better)',
-                   fontsize=14, fontweight='bold')
-axes[1].set_ylabel('ROC-AUC', fontsize=12)
-axes[1].set_ylim(0, 1.1)
-axes[1].grid(True, alpha=0.3, axis='y')
+                     linewidth=0.8, width=0.65)
+label_bars(axes[1], bars_b, fmt='{:.4f}', size=7.5)
+axes[1].set_xticks(x_fraud)
+axes[1].set_xticklabels(wrap_names(fraud_algos))
+axes[1].set_title('Part B: Fraud detection (ROC-AUC \u2191)')
+axes[1].set_ylabel('ROC-AUC')
+axes[1].set_ylim(0, 1.12)
+ygrid(axes[1])
 
-plt.tight_layout()
-plt.savefig(os.path.join(COMP_OUT, "overall_project_summary.png"), dpi=150, bbox_inches='tight')
-plt.close()
+save_fig(fig, os.path.join(COMP_OUT, "overall_project_summary.png"))
 print("   [CHART] overall_project_summary.png saved")
 
 # Print final summary
